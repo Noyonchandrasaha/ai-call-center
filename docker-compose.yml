@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  gateway:
+    build: ./gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_HOST=redis
+    deploy:
+      replicas: 20
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2Gi
+
+  stt-service:
+    build: ./stt-service
+    environment:
+      - ASSEMBLYAI_API_KEY=your_assemblyai_key
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_HOST=redis
+    deploy:
+      replicas: 50
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4Gi
+
+  llm-service:
+    build: ./llm-service
+    environment:
+      - OPENAI_API_KEY=your_openai_key
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_HOST=redis
+    deploy:
+      replicas: 30
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8Gi
+
+  tts-service:
+    build: ./tts-service
+    environment:
+      - ELEVENLABS_API_KEY=your_elevenlabs_key
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - REDIS_HOST=redis
+    deploy:
+      replicas: 40
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4Gi
+
+  management-api:
+    build: ./management-api
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=postgresql://user:pass@postgres/db
+    depends_on:
+      - postgres
+
+  kafka:
+    image: bitnami/kafka:3.6
+    ports:
+      - "9092:9092"
+    environment:
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+    volumes:
+      - kafka_data:/bitnami
+    deploy:
+      replicas: 6
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8Gi
+
+  redis:
+    image: redis/redis-stack:7.2.0
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    deploy:
+      replicas: 6
+      resources:
+        limits:
+          cpus: '2'
+          memory: 8Gi
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+volumes:
+  kafka_data:
+  redis_data:
+  postgres_data:
